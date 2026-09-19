@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-09-29/server.schema.json",
+  "name": "postbuzz-mcp",
+  "description": "Post, schedule, and analyze social media across 16+ platforms via the post.buzz API — posts, comments, inbox, media, analytics, teams, and CSV imports.",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registry_type": "npm",
+      "identifier": "postbuzz-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "name": "postbuzz-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for the post.buzz social media API — post, schedule, and analyze across 16+ platforms from Claude Desktop, Claude Code, Cursor, or any MCP client.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/navneet35371/postbuzz-mcp.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "postbuzz-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "server.json"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "post.buzz",
+    "postbuzz",
+    "mcp",
+    "model-context-protocol",
+    "social-media",
+    "claude",
+    "cursor"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "postbuzz": "file:../postbuzz-sdk",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

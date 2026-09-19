@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The SDK is a file:../postbuzz-sdk dev dependency — check it out as a
+      # sibling so installs resolve. (The build inlines it, so published
+      # artifacts are self-contained.)
+      - uses: actions/checkout@v4
+        with:
+          repository: navneet35371/postbuzz-sdk
+          path: postbuzz-sdk-sibling-checkout
+      - name: Place SDK at the expected sibling path
+        run: |
+          cd ..
+          mv "$GITHUB_WORKSPACE/postbuzz-sdk-sibling-checkout" "$(dirname "$GITHUB_WORKSPACE")/postbuzz-sdk"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun run typecheck
+      - run: bun run build
+      - run: bun test
