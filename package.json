@@ -1,6 +1,6 @@
 {
   "name": "postbuzz-mcp",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "MCP server for the post.buzz social media API — post, schedule, and analyze across 16+ platforms from Claude Desktop, Claude Code, Cursor, or any MCP client.",
   "type": "module",
   "license": "MIT",
@@ -43,7 +43,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "postbuzz": "file:../postbuzz-sdk",
+    "postbuzz": "^0.1.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -41,9 +41,12 @@ export function createServer(opts: CreateServerOptions): McpServer {
     ...(opts.apiUrl ? { baseUrl: opts.apiUrl } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
+  const pkgVersion = JSON.parse(
+    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+  ) as { version: string };
 
   const server = new McpServer(
-    { name: "postbuzz", version: "0.1.0" },
+    { name: "postbuzz", version: pkgVersion.version },
     { capabilities: { tools: {} } },
   );
 
