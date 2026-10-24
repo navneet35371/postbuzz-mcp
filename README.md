@@ -73,13 +73,17 @@ npx @modelcontextprotocol/inspector node dist/index.js
 
 **Inbox** — `list_inbox` (comments/mentions/DMs), `reply_to_inbox_item`, `edit_inbox_reply`.
 
-**Media** — `upload_media` (public URL or local path), `list_media`, `get_media`, `delete_media`, `delete_media_many`.
+**Media** — `upload_media` (public URL or local image/video/PDF path — other file types are refused), `list_media`, `get_media`, `delete_media`, `delete_media_many`.
 
 **Analytics** — `get_post_analytics`, `get_account_analytics`, `get_bulk_post_analytics` (≤ 60 posts), `refresh_analytics`, `get_analytics_summary`, `get_best_times`.
 
 **Teams** — `list_teams`, `get_team`, `create_team`, `update_team`, `delete_team`, `add_team_account`, `remove_team_account`.
 
 **CSV import** — `create_post_csv_import`, `list_post_csv_imports`, `get_post_csv_import`, `get_post_csv_import_rows`, `retry_post_csv_import`.
+
+**Clipping** — `create_clip` (long video → short clips, async, idempotent), `list_clips`, `get_clip`, `get_clip_usage`.
+
+Every tool carries MCP annotations: `get_*`/`list_*`/`describe_*` are `readOnlyHint`, `delete_*`/`disconnect_*`/`remove_*` are `destructiveHint`, so clients can auto-approve reads and confirm deletes.
 
 ### Targeting & per-platform fields
 
@@ -93,8 +97,8 @@ Tool failures return `{ "error": { "code", "message", "details"? } }` as text co
 
 ```bash
 bun install
-bun run build       # tsup → dist/index.js (SDK inlined)
-bun test            # vitest: MCP client over in-memory transport (manifest + flows)
+bun run build       # tsup → dist/index.js
+bun run test        # vitest: MCP client over in-memory transport (manifest + flows)
 node test/live-stdio.mjs   # live integration over real stdio (needs POSTBUZZ_API_KEY)
 ```
 

@@ -1,23 +1,21 @@
 {
   "name": "postbuzz-mcp",
-  "version": "0.1.2",
+  "version": "0.2.0",
+  "mcpName": "io.github.navneet35371/postbuzz-mcp",
   "description": "MCP server for the post.buzz social media API — post, schedule, and analyze across 16+ platforms from Claude Desktop, Claude Code, Cursor, or any MCP client.",
   "type": "module",
   "license": "MIT",
+  "author": "NAVIKEDAR TECH PRIVATE LIMITED <contact@post.buzz>",
+  "homepage": "https://docs.post.buzz",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/navneet35371/postbuzz-mcp.git"
   },
+  "bugs": {
+    "url": "https://github.com/navneet35371/postbuzz-mcp/issues"
+  },
   "engines": {
     "node": ">=20"
-  },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
   },
   "bin": {
     "postbuzz-mcp": "./dist/index.js"
@@ -30,7 +28,8 @@
     "build": "tsup",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "post.buzz",
@@ -43,7 +42,7 @@
   ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
-    "postbuzz": "^0.1.0",
+    "postbuzz": "^0.2.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {

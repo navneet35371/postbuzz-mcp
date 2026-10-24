@@ -1,16 +1,37 @@
 {
-  "$schema": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/main/schema/2025-09-29/server.schema.json",
-  "name": "postbuzz-mcp",
-  "description": "Post, schedule, and analyze social media across 16+ platforms via the post.buzz API — posts, comments, inbox, media, analytics, teams, and CSV imports.",
-  "version": "0.1.0",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.navneet35371/postbuzz-mcp",
+  "title": "post.buzz",
+  "description": "Post, schedule, and analyze social media across 16+ platforms via the post.buzz API.",
+  "repository": {
+    "url": "https://github.com/navneet35371/postbuzz-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://post.buzz",
+  "version": "0.2.0",
   "packages": [
     {
-      "registry_type": "npm",
+      "registryType": "npm",
       "identifier": "postbuzz-mcp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
-      }
+      },
+      "environmentVariables": [
+        {
+          "name": "POSTBUZZ_API_KEY",
+          "description": "post.buzz API key (Settings → API Keys, sx_live_…)",
+          "isRequired": true,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "POSTBUZZ_API_URL",
+          "description": "API base URL override (default https://post.buzz/api)",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
     }
   ]
 }

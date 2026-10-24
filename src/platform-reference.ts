@@ -124,7 +124,8 @@ export const PLATFORM_REFERENCE: Record<string, PlatformReferenceEntry> = {
   },
 
   x: {
-    // capabilities.ts: x { reply, dm, listen }
+    // capabilities.ts: x { reply, dm, listen } (hide/delete also true, but
+    // the reference mirrors only reply/dm/listen)
     capabilities: ["reply", "dm", "listen"],
     fields: [
       {
@@ -200,7 +201,8 @@ export const PLATFORM_REFERENCE: Record<string, PlatformReferenceEntry> = {
   },
 
   youtube: {
-    // capabilities.ts: youtube { reply, listen }
+    // capabilities.ts: youtube { reply, listen } (hide/delete also true, but
+    // the reference mirrors only reply/dm/listen)
     capabilities: ["reply", "listen"],
     fields: [
       {
@@ -317,8 +319,9 @@ export const PLATFORM_REFERENCE: Record<string, PlatformReferenceEntry> = {
   },
 
   discord: {
-    // capabilities.ts: discord { reply, dm }
-    capabilities: ["reply", "dm"],
+    // capabilities.ts: discord { reply, dm, listen } — bot reads channel
+    // history for comment fetch; no gateway websocket for live listening.
+    capabilities: ["reply", "dm", "listen"],
     fields: [
       {
         name: "caption",
@@ -351,7 +354,8 @@ export const PLATFORM_REFERENCE: Record<string, PlatformReferenceEntry> = {
   },
 
   telegram: {
-    // capabilities.ts: telegram { reply, dm }
+    // capabilities.ts: telegram { reply, dm } (edit also true, but the
+    // reference mirrors only reply/dm/listen)
     capabilities: ["reply", "dm"],
     fields: [
       {
@@ -433,8 +437,9 @@ export const PLATFORM_REFERENCE: Record<string, PlatformReferenceEntry> = {
   },
 
   "google-my-business": {
-    // capabilities.ts: google-my-business {} (no adapter ops)
-    capabilities: [],
+    // capabilities.ts: google-my-business { reply, listen } (reviews via
+    // comments surface)
+    capabilities: ["reply", "listen"],
     fields: [
       {
         name: "caption",

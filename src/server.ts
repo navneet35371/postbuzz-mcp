@@ -11,6 +11,8 @@ import { PostBuzz, PostBuzzError } from "postbuzz";
 import { PLATFORM_REFERENCE } from "./platform-reference.js";
 import { guard } from "./tool-utils.js";
 import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
 
 export interface CreateServerOptions {
   apiKey: string;
@@ -18,22 +20,20 @@ export interface CreateServerOptions {
   fetch?: typeof globalThis.fetch;
 }
 
-function sniffMime(path: string): string {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  const map: Record<string, string> = {
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    gif: "image/gif",
-    webp: "image/webp",
-    mp4: "video/mp4",
-    mov: "video/quicktime",
-    webm: "video/webm",
-    m4v: "video/x-m4v",
-    pdf: "application/pdf",
-  };
-  return map[ext] ?? "application/octet-stream";
-}
+/** Local uploads are limited to media extensions so a prompt-injected
+ *  `upload_media { path: "~/.ssh/id_rsa" }` cannot exfiltrate arbitrary files. */
+const UPLOAD_MIME: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  mp4: "video/mp4",
+  mov: "video/quicktime",
+  webm: "video/webm",
+  m4v: "video/x-m4v",
+  pdf: "application/pdf",
+};
 
 export function createServer(opts: CreateServerOptions): McpServer {
   const pb = new PostBuzz({
@@ -50,8 +50,25 @@ export function createServer(opts: CreateServerOptions): McpServer {
     { capabilities: { tools: {} } },
   );
 
-  const t = server.registerTool.bind(server);
-  const shape = z;
+  // Every tool gets MCP behaviour hints derived from its verb, so clients can
+  // auto-approve reads and confirm destructive calls. Explicit `annotations`
+  // in a tool's config win.
+  const READ_ONLY = /^(check|describe|get|list)_/;
+  const DESTRUCTIVE = /^(delete|disconnect|remove)_/;
+  const t = ((name: string, config: { annotations?: object }, cb: unknown) =>
+    server.registerTool(
+      name,
+      {
+        ...config,
+        annotations: {
+          readOnlyHint: READ_ONLY.test(name),
+          destructiveHint: DESTRUCTIVE.test(name),
+          openWorldHint: true,
+          ...config.annotations,
+        },
+      },
+      cb as never,
+    )) as typeof server.registerTool;
 
   // -----------------------------------------------------------------------
   // Diagnostics + reference
@@ -74,6 +91,7 @@ export function createServer(opts: CreateServerOptions): McpServer {
       title: "Describe platform",
       description:
         "Per-platform publish field schemas and adapter capabilities. Call before create_post/create_comment to learn required fields. Offline — no API call.",
+      annotations: { openWorldHint: false },
       inputSchema: {
         platform: z
           .string()
@@ -220,10 +238,11 @@ export function createServer(opts: CreateServerOptions): McpServer {
       title: "Run account tool",
       description:
         "Run a per-account lookup: reddit-flairs (input { subreddit }) or pinterest-boards (input {}). Use before creating posts that need a flair or board id.",
+      annotations: { readOnlyHint: true },
       inputSchema: {
         accountId: z.string(),
         tool: z.string().describe("Tool name from list_account_tools"),
-        input: z.record(shape.string(), shape.unknown()).optional(),
+        input: z.record(z.string(), z.unknown()).optional(),
       },
     },
     ({ accountId, tool, input }) =>
@@ -260,13 +279,13 @@ export function createServer(opts: CreateServerOptions): McpServer {
         z.object({
           accountId: z.string(),
           captionOverride: z.string().nullable().optional(),
-          fields: z.record(shape.string(), shape.string()).optional(),
+          fields: z.record(z.string(), z.string()).optional(),
         }),
       )
       .optional()
       .describe("Per-channel caption/field overrides"),
     threadParts: z
-      .record(shape.string(), z.array(z.string().min(1)))
+      .record(z.string(), z.array(z.string().min(1)))
       .nullish()
       .describe("Thread renditions keyed by accountId (postType 'thread')"),
   };
@@ -373,7 +392,7 @@ export function createServer(opts: CreateServerOptions): McpServer {
             z.object({
               accountId: z.string(),
               captionOverride: z.string().nullable().optional(),
-              fields: z.record(shape.string(), shape.string()).optional(),
+              fields: z.record(z.string(), z.string()).optional(),
             }),
           )
           .optional(),
@@ -387,7 +406,7 @@ export function createServer(opts: CreateServerOptions): McpServer {
           .nullable()
           .optional(),
         threadParts: z
-          .record(shape.string(), z.array(z.string().min(1)))
+          .record(z.string(), z.array(z.string().min(1)))
           .nullish(),
       },
     },
@@ -564,7 +583,7 @@ export function createServer(opts: CreateServerOptions): McpServer {
     {
       title: "Upload media",
       description:
-        "Upload media from a public URL or a local file path. Returns the media row whose id posts reference via mediaIds.",
+        "Upload media from a public URL or a local image/video/PDF file path. Returns the media row whose id posts reference via mediaIds.",
       inputSchema: {
         url: z.string().optional().describe("Public media URL"),
         path: z.string().optional().describe("Local file path"),
@@ -576,12 +595,26 @@ export function createServer(opts: CreateServerOptions): McpServer {
         return pb.media.createFromUrl({ url, mediaType });
       }
       if (path) {
-        const bytes = readFileSync(path);
-        const name = path.split("/").pop() ?? "upload";
+        const type = UPLOAD_MIME[extname(path).slice(1).toLowerCase()];
+        if (!type) {
+          throw new PostBuzzError({
+            status: 0,
+            code: "UNSUPPORTED_FILE_TYPE",
+            message: `Only media files can be uploaded (${Object.keys(UPLOAD_MIME).join(", ")}): ${path}`,
+          });
+        }
+        let bytes: Buffer;
+        try {
+          bytes = await readFile(path);
+        } catch {
+          throw new PostBuzzError({
+            status: 0,
+            code: "FILE_NOT_FOUND",
+            message: `Could not read local file: ${path}`,
+          });
+        }
         return pb.media.uploadFile({
-          file: new File([new Uint8Array(bytes)], name, {
-            type: sniffMime(path),
-          }),
+          file: new File([new Uint8Array(bytes)], basename(path), { type }),
           mediaType,
         });
       }
@@ -902,6 +935,61 @@ export function createServer(opts: CreateServerOptions): McpServer {
       inputSchema: { jobId: z.string() },
     },
     ({ jobId }) => guard(() => pb.imports.retryPostCsv(jobId))(),
+  );
+
+  // -----------------------------------------------------------------------
+  // Clipping
+  // -----------------------------------------------------------------------
+
+  t(
+    "create_clip",
+    {
+      title: "Create clips",
+      description:
+        "Cut a long video (YouTube or public URL) into short vertical clips, optionally auto-posting them to channelIds. Async — poll get_clip. Consumes clipping minutes (get_clip_usage).",
+      inputSchema: {
+        url: z.string().max(2048).describe("Source video URL"),
+        maxClips: z.number().int().min(1).max(10).optional().describe("Default 5"),
+        fit: z.enum(["blur", "crop"]).optional().describe("Landscape → vertical fit (default blur)"),
+        channelIds: z.array(z.string()).max(20).optional().describe("Accounts to auto-post finished clips to"),
+        idempotencyKey: z
+          .string()
+          .min(1)
+          .max(100)
+          .describe("Unique per request; resending the same key returns the same job instead of charging twice"),
+      },
+    },
+    (args) => guard(() => pb.clips.create(args))(),
+  );
+
+  t(
+    "list_clips",
+    {
+      title: "List clips",
+      description: "Recent clipping jobs with their stage and results.",
+      inputSchema: { limit: z.number().int().min(1).max(20).optional() },
+    },
+    (args) => guard(() => pb.clips.list(args))(),
+  );
+
+  t(
+    "get_clip",
+    {
+      title: "Get clip",
+      description: "One clipping job: stage, picks, and per-clip results (mediaId, postIds).",
+      inputSchema: { clipId: z.string() },
+    },
+    ({ clipId }) => guard(() => pb.clips.get(clipId))(),
+  );
+
+  t(
+    "get_clip_usage",
+    {
+      title: "Get clip usage",
+      description: "Clipping minutes used vs. the plan limit.",
+      inputSchema: {},
+    },
+    guard(() => pb.clips.usage()),
   );
 
   return server;

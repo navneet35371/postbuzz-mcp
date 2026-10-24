@@ -134,6 +134,11 @@ const EXPECTED_TOOLS = [
   "get_post_csv_import",
   "get_post_csv_import_rows",
   "retry_post_csv_import",
+  // Clipping
+  "create_clip",
+  "list_clips",
+  "get_clip",
+  "get_clip_usage",
 ];
 
 describe("tool manifest", () => {
@@ -156,7 +161,45 @@ describe("tool manifest", () => {
   });
 });
 
+describe("tool annotations", () => {
+  it("marks reads read-only and deletes destructive", async () => {
+    const { tools } = await client.listTools();
+    const hints = (name: string) => tools.find((t) => t.name === name)!.annotations;
+    expect(hints("list_posts")).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+    expect(hints("run_account_tool")).toMatchObject({ readOnlyHint: true });
+    expect(hints("create_post")).toMatchObject({ readOnlyHint: false, destructiveHint: false });
+    expect(hints("delete_post")).toMatchObject({ readOnlyHint: false, destructiveHint: true });
+    expect(hints("disconnect_account")).toMatchObject({ destructiveHint: true });
+    expect(hints("describe_platform")).toMatchObject({ openWorldHint: false });
+  });
+});
+
 describe("representative flows", () => {
+  it("upload_media refuses non-media local paths without reading them", async () => {
+    const res = await client.callTool({
+      name: "upload_media",
+      arguments: { path: "/home/user/.ssh/id_rsa" },
+    });
+    expect(res.isError).toBe(true);
+    const body = JSON.parse((res.content as Array<{ text: string }>)[0]!.text);
+    expect(body.error.code).toBe("UNSUPPORTED_FILE_TYPE");
+    expect(requests.length).toBe(0);
+  });
+
+  it("create_clip forwards the idempotency key", async () => {
+    ok({ id: "c1", status: "pending" });
+    const res = await client.callTool({
+      name: "create_clip",
+      arguments: { url: "https://youtu.be/x", idempotencyKey: "k1" },
+    });
+    expect(res.isError).toBeFalsy();
+    expect(requests[0]!.path).toBe("/v1/clips");
+    expect(JSON.parse(requests[0]!.body!)).toEqual({
+      url: "https://youtu.be/x",
+      idempotencyKey: "k1",
+    });
+  });
+
   it("check_setup hits diagnostics and returns the checks", async () => {
     ok({
       ok: true,
