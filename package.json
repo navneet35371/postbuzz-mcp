@@ -1,6 +1,6 @@
 {
   "name": "postbuzz-mcp",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "mcpName": "io.github.navneet35371/postbuzz-mcp",
   "description": "MCP server for the post.buzz social media API — post, schedule, and analyze across 16+ platforms from Claude Desktop, Claude Code, Cursor, or any MCP client.",
   "type": "module",
@@ -19,6 +19,13 @@
   },
   "bin": {
     "postbuzz-mcp": "./dist/index.js"
+  },
+  "exports": {
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

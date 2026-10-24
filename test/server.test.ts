@@ -1,4 +1,4 @@
-import { createServer } from "../src/server.js";
+import { createServer, handleMcpRequest } from "../src/server.js";
 import { createServer as createHttpServer, type Server } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -53,14 +53,16 @@ beforeEach(() => {
 
 let client: Client;
 
-beforeAll(async () => {
-  const server = createServer({ apiKey: "sx_live_test", apiUrl });
-  client = new Client({ name: "test-client", version: "1.0.0" });
+async function connect(opts: { localFiles?: boolean } = {}): Promise<Client> {
+  const server = createServer({ apiKey: "sx_live_test", apiUrl, ...opts });
+  const c = new Client({ name: "test-client", version: "1.0.0" });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  await Promise.all([
-    client.connect(clientTransport),
-    server.connect(serverTransport),
-  ]);
+  await Promise.all([c.connect(clientTransport), server.connect(serverTransport)]);
+  return c;
+}
+
+beforeAll(async () => {
+  client = await connect();
 });
 
 function ok(data: unknown) {
@@ -175,8 +177,21 @@ describe("tool annotations", () => {
 });
 
 describe("representative flows", () => {
-  it("upload_media refuses non-media local paths without reading them", async () => {
+  it("upload_media has no local-path input unless localFiles is enabled", async () => {
+    const { tools } = await client.listTools();
+    const upload = tools.find((t) => t.name === "upload_media")!;
+    expect(Object.keys(upload.inputSchema.properties ?? {})).not.toContain("path");
     const res = await client.callTool({
+      name: "upload_media",
+      arguments: { path: "/etc/passwd" },
+    });
+    expect(res.isError).toBe(true);
+    expect(requests.length).toBe(0);
+  });
+
+  it("localFiles upload_media refuses non-media paths without reading them", async () => {
+    const local = await connect({ localFiles: true });
+    const res = await local.callTool({
       name: "upload_media",
       arguments: { path: "/home/user/.ssh/id_rsa" },
     });
@@ -345,5 +360,52 @@ describe("representative flows", () => {
       arguments: { csv: "caption,accountId\nhi,a1" },
     });
     expect(requests[3]!.path).toBe("/v1/imports/posts/csv");
+  });
+});
+
+describe("handleMcpRequest (Streamable HTTP, stateless)", () => {
+  const rpc = (body: unknown) =>
+    new Request("http://localhost/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("answers initialize and tools/call per request, without sessions", async () => {
+    const init = await handleMcpRequest(
+      rpc({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } },
+      }),
+      { apiKey: "sx_live_test", apiUrl },
+    );
+    expect(init.status).toBe(200);
+    expect(init.headers.get("mcp-session-id")).toBeNull();
+    const initBody = (await init.json()) as { result: { serverInfo: { name: string } } };
+    expect(initBody.result.serverInfo.name).toBe("postbuzz");
+
+    ok({ ok: true, checks: [] });
+    const call = await handleMcpRequest(
+      rpc({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "check_setup", arguments: {} } }),
+      { apiKey: "sx_live_test", apiUrl },
+    );
+    const callBody = (await call.json()) as { result: { isError?: boolean } };
+    expect(callBody.result.isError).toBeFalsy();
+    expect(requests[0]!.path).toBe("/v1/diagnostics/setup");
+  });
+
+  it("never exposes local file uploads", async () => {
+    const res = await handleMcpRequest(
+      rpc({ jsonrpc: "2.0", id: 3, method: "tools/list" }),
+      { apiKey: "sx_live_test", apiUrl },
+    );
+    const body = (await res.json()) as { result: { tools: Array<{ name: string; inputSchema: { properties?: object } }> } };
+    const upload = body.result.tools.find((t) => t.name === "upload_media")!;
+    expect(Object.keys(upload.inputSchema.properties ?? {})).not.toContain("path");
   });
 });

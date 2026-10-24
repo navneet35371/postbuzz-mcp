@@ -6,19 +6,26 @@
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { z } from "zod";
 import { PostBuzz, PostBuzzError } from "postbuzz";
 import { PLATFORM_REFERENCE } from "./platform-reference.js";
 import { guard } from "./tool-utils.js";
-import { readFileSync } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 
 export interface CreateServerOptions {
   apiKey: string;
   apiUrl?: string;
   fetch?: typeof globalThis.fetch;
+  /** Let `upload_media` read local file paths. Only meaningful (and only
+   *  safe) when the server runs on the user's machine — the stdio binary
+   *  enables it; a hosted server must not. Default false. */
+  localFiles?: boolean;
 }
+
+declare const __MCP_VERSION__: string;
+const VERSION =
+  typeof __MCP_VERSION__ === "string" ? __MCP_VERSION__ : "dev";
 
 /** Local uploads are limited to media extensions so a prompt-injected
  *  `upload_media { path: "~/.ssh/id_rsa" }` cannot exfiltrate arbitrary files. */
@@ -41,12 +48,8 @@ export function createServer(opts: CreateServerOptions): McpServer {
     ...(opts.apiUrl ? { baseUrl: opts.apiUrl } : {}),
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
-  const pkgVersion = JSON.parse(
-    readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-  ) as { version: string };
-
   const server = new McpServer(
-    { name: "postbuzz", version: pkgVersion.version },
+    { name: "postbuzz", version: VERSION },
     { capabilities: { tools: {} } },
   );
 
@@ -583,14 +586,20 @@ export function createServer(opts: CreateServerOptions): McpServer {
     {
       title: "Upload media",
       description:
-        "Upload media from a public URL or a local image/video/PDF file path. Returns the media row whose id posts reference via mediaIds.",
+        opts.localFiles
+          ? "Upload media from a public URL or a local image/video/PDF file path. Returns the media row whose id posts reference via mediaIds."
+          : "Upload media from a public URL. Returns the media row whose id posts reference via mediaIds.",
       inputSchema: {
         url: z.string().optional().describe("Public media URL"),
-        path: z.string().optional().describe("Local file path"),
+        ...(opts.localFiles
+          ? { path: z.string().optional().describe("Local file path") }
+          : {}),
         mediaType: z.enum(["image", "video", "document"]).optional(),
       },
     },
-    guard(async ({ url, path, mediaType }) => {
+    guard(async (args: { url?: string; path?: string; mediaType?: "image" | "video" | "document" }) => {
+      const { url, mediaType } = args;
+      const path = opts.localFiles ? args.path : undefined;
       if (url) {
         return pb.media.createFromUrl({ url, mediaType });
       }
@@ -603,6 +612,7 @@ export function createServer(opts: CreateServerOptions): McpServer {
             message: `Only media files can be uploaded (${Object.keys(UPLOAD_MIME).join(", ")}): ${path}`,
           });
         }
+        const { readFile } = await import("node:fs/promises");
         let bytes: Buffer;
         try {
           bytes = await readFile(path);
@@ -621,7 +631,7 @@ export function createServer(opts: CreateServerOptions): McpServer {
       throw new PostBuzzError({
         status: 0,
         code: "MISSING_PARAMS",
-        message: "Pass either url or path.",
+        message: opts.localFiles ? "Pass either url or path." : "Pass url.",
       });
     }),
   );
@@ -993,4 +1003,25 @@ export function createServer(opts: CreateServerOptions): McpServer {
   );
 
   return server;
+}
+
+/** Serve one Streamable HTTP request (POST/GET/DELETE /mcp) statelessly: a
+ *  fresh server + transport per request, JSON responses, no sessions — fits
+ *  serverless runtimes (Cloudflare Workers, Deno, Bun) with Web-standard
+ *  Request/Response. The caller authenticates and passes the user's key. */
+export async function handleMcpRequest(
+  request: Request,
+  opts: Omit<CreateServerOptions, "localFiles">,
+): Promise<Response> {
+  const server = createServer({ ...opts, localFiles: false });
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  });
+  await server.connect(transport);
+  try {
+    return await transport.handleRequest(request);
+  } finally {
+    await server.close();
+  }
 }

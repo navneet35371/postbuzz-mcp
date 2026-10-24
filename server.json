@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://post.buzz",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "postbuzz-mcp",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "transport": {
         "type": "stdio"
       },

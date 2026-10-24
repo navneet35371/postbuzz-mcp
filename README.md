@@ -93,6 +93,25 @@ Posts target accounts by id (`list_accounts`); per-platform required fields (Red
 
 Tool failures return `{ "error": { "code", "message", "details"? } }` as text content with `isError: true` — the same envelope the REST API and CLI emit.
 
+## Hosted endpoint
+
+post.buzz also serves these tools at `https://post.buzz/api/mcp`
+(Streamable HTTP), so no local install is needed:
+
+```bash
+claude mcp add --transport http postbuzz https://post.buzz/api/mcp \
+  --header "Authorization: Bearer sx_live_…"
+```
+
+The hosted server has no access to your files: `upload_media` takes URLs only.
+
+### Embedding
+
+`postbuzz-mcp/server` exports `createServer(options)` and
+`handleMcpRequest(request, options)` — the latter serves one stateless
+Streamable HTTP request with Web-standard `Request`/`Response`, for hosting
+the tools on Workers, Deno, Bun, or any fetch-style server.
+
 ## Development
 
 ```bash

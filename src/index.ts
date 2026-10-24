@@ -35,7 +35,11 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const server = createServer({ apiKey, ...(apiUrl ? { apiUrl } : {}) });
+  const server = createServer({
+    apiKey,
+    localFiles: true,
+    ...(apiUrl ? { apiUrl } : {}),
+  });
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
